@@ -19,7 +19,7 @@ import (
 const tempDir = "wallet_server/templates"
 
 type WalletServer struct {
-	port uint16
+	port    uint16
 	gateway string
 }
 
@@ -27,7 +27,7 @@ func NewWalletServer(port uint16, gateway string) *WalletServer {
 	return &WalletServer{port, gateway}
 }
 
-func(ws *WalletServer) Port() uint16 {
+func (ws *WalletServer) Port() uint16 {
 	return ws.port
 }
 
@@ -94,15 +94,15 @@ func (ws *WalletServer) CreateTransaction(w http.ResponseWriter, r *http.Request
 		signatureStr := signature.String()
 
 		bt := &block.TransactionRequest{
-			SenderBlockchainAddress: t.SenderBlockchainAddress,
+			SenderBlockchainAddress:    t.SenderBlockchainAddress,
 			RecipientBlockchainAddress: t.RecipientBlockchainAddress,
-			SenderPublicKey: t.SenderPublicKey,
-			Value: &value32,
-			Signature: &signatureStr,
+			SenderPublicKey:            t.SenderPublicKey,
+			Value:                      &value32,
+			Signature:                  &signatureStr,
 		}
 		m, _ := json.Marshal(bt)
 		buf := bytes.NewBuffer(m)
-		resq, err := http.Post(ws.Gateway() + "/transaction", "application/json", buf)
+		resq, err := http.Post(ws.Gateway()+"/transactions", "application/json", buf)
 		if err != nil {
 			log.Printf("ERRORdayo: %v", err)
 			io.WriteString(w, string(utils.JsonStatus("fail")))
@@ -114,15 +114,59 @@ func (ws *WalletServer) CreateTransaction(w http.ResponseWriter, r *http.Request
 		}
 		io.WriteString(w, string(utils.JsonStatus("fail")))
 	default:
-		w.WriteHeader(http.StatusBadRequest)
 		log.Println("ERROR3")
+		w.WriteHeader(http.StatusBadRequest)
+	}
+}
+
+func (ws *WalletServer) WalletAmount(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		blockchainAddress := r.URL.Query().Get("blockchain_address")
+		endpoint := fmt.Sprintf("%s/amount", ws.Gateway())
+
+		client := &http.Client{}
+		bcsReq, _ := http.NewRequest("GET", endpoint, nil)
+		q := bcsReq.URL.Query()
+		q.Add("blockchain_address", blockchainAddress)
+		bcsReq.URL.RawQuery = q.Encode()
+		bcsResp, err := client.Do(bcsReq)
+		if err != nil {
+			log.Printf("ERROR %v", err)
+			io.WriteString(w, string(utils.JsonStatus("fail")))
+			return
+		}
+		w.Header().Add("Content-Type", "application/json")
+		if bcsResp.StatusCode == 200 {
+			decoder := json.NewDecoder(bcsResp.Body)
+			var bar block.AmountResponse
+			err := decoder.Decode(&bar)
+			if err != nil {
+				log.Printf("ERROR %v", err)
+				io.WriteString(w, string(utils.JsonStatus("fail")))
+				return
+			}
+			m, _ := json.Marshal(struct {
+				Messeage string  `json:"message"`
+				Amount   float32 `json:"amount"`
+			}{
+				Messeage: "success",
+				Amount:   bar.Amount,
+			})
+			io.WriteString(w, string(m[:]))
+		} else {
+			io.WriteString(w, string(utils.JsonStatus("fail")))
+		}
+	default:
+		log.Println("ERROR4")
+		w.WriteHeader(http.StatusBadRequest)
 	}
 }
 
 func (ws *WalletServer) Run() {
 	http.HandleFunc("/", ws.Index)
 	http.HandleFunc("/wallet", ws.Wallet)
+	http.HandleFunc("/wallet/amount", ws.WalletAmount)
 	http.HandleFunc("/transaction", ws.CreateTransaction)
 	log.Fatal(http.ListenAndServe("0.0.0.0:"+strconv.Itoa(int(ws.Port())), nil))
 }
-
