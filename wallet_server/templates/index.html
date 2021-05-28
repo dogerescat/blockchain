@@ -2,8 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <!-- <meta http-equiv="X-UA-Compatible" content="IE=edge"> -->
-    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
     <title>BlockChain</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
     <script>
@@ -49,14 +47,30 @@
                     
                 })
             })
+
+            function reload_amount() {
+                let data = {'blockchain_address': $('#blockchain_address').val()}
+                $.ajax({
+                    url: '/wallet/amount',
+                    type: 'GET',
+                    data: data,
+                    success: function(response) {
+                        let amount = response['amount'];
+                        $('#wallet_amount').text(amount);
+                    },
+                    error: function(error) {
+                        console.error(error);
+                    }
+                })
+            }
+            setInterval(reload_amount, 3000);
         })
     </script>
 </head>
 <body>
     <div>
         <h1>Wallet</h1>
-        <div class="wallet_amount">0</div>
-        <button class="reload_wallet">Reload Wallet</button>
+        <div id="wallet_amount">0</div>
 
         <p>Public Key</p>
         <textarea name="" id="public_key" cols="100" rows="2"></textarea>
